@@ -56,8 +56,10 @@ class Model {
       if (identifier === task.identifier) {
         if (text) {
           task.text = text || task.text;
+          task.isInput = false;
+        } else {
+          task.isInput = true;
         }
-        task.isInput = !task.isInput;
         changedTask = task;
       }
       return task;
