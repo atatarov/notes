@@ -38,43 +38,42 @@ class Model {
   }
 
   toggleTask(identifier) {
-    let changedTask;
+    let toggledTask;
     this.taskList = this.taskList.map(function (task) {
       if (identifier === task.identifier) {
         task.completed = !task.completed;
+        toggledTask = task;
+      }
+      return task;
+    });
+    if (toggledTask) this.onToggleTaskChanged(toggledTask);
+    this._saveLocalStorage(this.taskList);
+  }
+
+  changeTask(identifier, text) {
+    let changedTask;
+    this.taskList = this.taskList.map((task) => {
+      if (identifier === task.identifier) {
+        if (text) {
+          task.text = text || task.text;
+        }
+        task.isInput = !task.isInput;
         changedTask = task;
       }
       return task;
     });
+
     if (changedTask) this.onTaskChanged(changedTask);
-    this._saveLocalStorage(this.taskList);
-  }
 
-  inputTask(identifier) {
-    this.taskList = this.taskList.map(function (task) {
-      if (identifier === task.identifier) {
-        task.isInput = true;
-      }
-      return task;
-    });
-
-    this._saveAndNotifyListChanged(this.taskList);
-  }
-
-  editTask(identifier, text) {
-    this.taskList = this.taskList.map((task) => {
-      if (identifier === task.identifier) {
-        task.text = text;
-        task.isInput = false;
-      }
-      return task;
-    });
-
-    this._saveAndNotifyListChanged(this.taskList);
+    if (text) this._saveLocalStorage(this.taskList);
   }
 
   bindTaskListChanged(callback) {
     this.onTaskListChanged = callback;
+  }
+
+  bindToggleTaskChanged(callback) {
+    this.onToggleTaskChanged = callback;
   }
 
   bindTaskChanged(callback) {
@@ -109,12 +108,21 @@ class View {
     return element;
   }
 
-  changeTask(task) {
+  toggleTask(task) {
     const nodes = this.tasks.childNodes;
     nodes.forEach((node) => {
       if (node.identifier === task.identifier) {
         const paragraph = node.lastChild;
         paragraph.classList.toggle("completed");
+      }
+    });
+  }
+
+  changeTask(task) {
+    const nodes = this.tasks.childNodes;
+    nodes.forEach((node) => {
+      if (node.identifier === task.identifier) {
+        this._redrawListItem(node, task);
       }
     });
   }
@@ -128,38 +136,36 @@ class View {
       taskList.forEach((task) => {
         const listItem = this.createElement("li", "task");
         listItem.identifier = task.identifier;
-
-        if (task.isInput) {
-          const input = this.createElement("input");
-          input.id = "task-input";
-          input.placeholder = "Edit a task...";
-          input.type = "text";
-          input.value = task.text;
-          listItem.append(input);
-        } else {
-          const trash = this.createElement(
-            "span",
-            "task-button",
-            "task-delete"
-          );
-          const trashIcon = this.createElement("i", "fas", "fa-trash-alt");
-          trash.append(trashIcon);
-
-          const edit = this.createElement("span", "task-button", "task-edit");
-          const editIcon = this.createElement("i", "fas", "fa-edit");
-          edit.append(editIcon);
-
-          const paragraph = this.createElement("p", "task-paragraph");
-          if (task.completed) paragraph.classList.add("completed");
-          paragraph.textContent = task.text;
-
-          listItem.append(trash, edit);
-          listItem.append(paragraph);
-        }
+        this._redrawListItem(listItem, task);
         this.tasks.append(listItem);
       });
     }
   }
+
+  _redrawListItem(listItem, task) {
+    if (task.isInput) {
+      const input = this.createElement("input");
+      input.id = "task-input";
+      input.placeholder = "Edit a task...";
+      input.type = "text";
+      input.value = task.text;
+      listItem.replaceChildren(input);
+    } else {
+      const trash = this.createElement("span", "task-button", "task-delete");
+      const trashIcon = this.createElement("i", "fas", "fa-trash-alt");
+      trash.append(trashIcon);
+
+      const edit = this.createElement("span", "task-button", "task-edit");
+      const editIcon = this.createElement("i", "fas", "fa-edit");
+      edit.append(editIcon);
+
+      const paragraph = this.createElement("p", "task-paragraph");
+      if (task.completed) paragraph.classList.add("completed");
+      paragraph.textContent = task.text;
+      listItem.replaceChildren(trash, edit, paragraph);
+    }
+  }
+
   get _addTask() {
     return document.getElementById("add-task");
   }
@@ -232,7 +238,10 @@ class View {
     this._tasks.addEventListener("keypress", (event) => {
       if (event.key === "Enter" && event.target.id === "task-input") {
         event.preventDefault();
-        handle(event.target.parentElement.identifier, event.target.value);
+        handle(
+          event.target.parentElement.identifier,
+          event.target.value.trim()
+        );
       }
     });
   }
@@ -251,11 +260,16 @@ class Controller {
     this.view.bindEditTask(this.handleEditTask);
 
     this.model.bindTaskListChanged(this.onTaskListChanged);
+    this.model.bindToggleTaskChanged(this.onToggleTaskChanged);
     this.model.bindTaskChanged(this.onTaskChanged);
   }
 
   onTaskListChanged = (taskList) => {
     this.view.displayTasks(taskList);
+  };
+
+  onToggleTaskChanged = (task) => {
+    this.view.toggleTask(task);
   };
 
   onTaskChanged = (task) => {
@@ -275,11 +289,11 @@ class Controller {
   };
 
   handleInputTask = (identifier) => {
-    this.model.inputTask(identifier);
+    this.model.changeTask(identifier);
   };
 
   handleEditTask = (identifier, text) => {
-    this.model.editTask(identifier, text);
+    this.model.changeTask(identifier, text);
   };
 }
 
