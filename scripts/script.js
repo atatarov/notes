@@ -38,14 +38,16 @@ class Model {
   }
 
   toggleTask(identifier) {
+    let changedTask;
     this.taskList = this.taskList.map(function (task) {
       if (identifier === task.identifier) {
         task.completed = !task.completed;
+        changedTask = task;
       }
       return task;
     });
-
-    this._saveAndNotifyListChanged(this.taskList);
+    if (changedTask) this.onTaskChanged(changedTask);
+    this._saveLocalStorage(this.taskList);
   }
 
   inputTask(identifier) {
@@ -75,9 +77,16 @@ class Model {
     this.onTaskListChanged = callback;
   }
 
+  bindTaskChanged(callback) {
+    this.onTaskChanged = callback;
+  }
+
   _saveAndNotifyListChanged(tasks) {
     this.onTaskListChanged(tasks);
+    this._saveLocalStorage(tasks);
+  }
 
+  _saveLocalStorage(tasks) {
     const tasksToStorage = this.taskList.map((task) => {
       if (task.isInput) task.isInput = false;
       return task;
@@ -98,6 +107,16 @@ class View {
     if (secondClass) element.classList.add(secondClass);
 
     return element;
+  }
+
+  changeTask(task) {
+    const nodes = this.tasks.childNodes;
+    nodes.forEach((node) => {
+      if (node.identifier === task.identifier) {
+        const paragraph = node.lastChild;
+        paragraph.classList.toggle("completed");
+      }
+    });
   }
 
   displayTasks(taskList) {
@@ -232,10 +251,15 @@ class Controller {
     this.view.bindEditTask(this.handleEditTask);
 
     this.model.bindTaskListChanged(this.onTaskListChanged);
+    this.model.bindTaskChanged(this.onTaskChanged);
   }
 
   onTaskListChanged = (taskList) => {
     this.view.displayTasks(taskList);
+  };
+
+  onTaskChanged = (task) => {
+    this.view.changeTask(task);
   };
 
   handleAddTask = (text) => {
