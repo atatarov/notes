@@ -26,7 +26,8 @@ class Model {
 
     this.taskList.push(task);
 
-    this._saveAndNotifyListChanged(this.taskList);
+    if (task) this.onTaskAdded(task);
+    this._saveLocalStorage(this.taskList);
   }
 
   removeTask(identifier) {
@@ -34,7 +35,8 @@ class Model {
       (task) => task.identifier != identifier
     );
 
-    this._saveAndNotifyListChanged(this.taskList);
+    this.onTaskRemoved(identifier);
+    this._saveLocalStorage(this.taskList);
   }
 
   toggleTask(identifier) {
@@ -46,7 +48,7 @@ class Model {
       }
       return task;
     });
-    if (toggledTask) this.onToggleTaskChanged(toggledTask);
+    if (toggledTask) this.onTaskToggled(toggledTask);
     this._saveLocalStorage(this.taskList);
   }
 
@@ -70,29 +72,23 @@ class Model {
     if (text) this._saveLocalStorage(this.taskList);
   }
 
-  bindTaskListChanged(callback) {
-    this.onTaskListChanged = callback;
-  }
-
-  bindToggleTaskChanged(callback) {
-    this.onToggleTaskChanged = callback;
+  bindTaskToggled(callback) {
+    this.onTaskToggled = callback;
   }
 
   bindTaskChanged(callback) {
     this.onTaskChanged = callback;
   }
 
-  _saveAndNotifyListChanged(tasks) {
-    this.onTaskListChanged(tasks);
-    this._saveLocalStorage(tasks);
+  bindTaskAdded(callback) {
+    this.onTaskAdded = callback;
+  }
+
+  bindTaskRemoved(callback) {
+    this.onTaskRemoved = callback;
   }
 
   _saveLocalStorage(tasks) {
-    const tasksToStorage = this.taskList.map((task) => {
-      if (task.isInput) task.isInput = false;
-      return task;
-    });
-
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }
 }
@@ -108,6 +104,22 @@ class View {
     if (secondClass) element.classList.add(secondClass);
 
     return element;
+  }
+
+  addTask(task) {
+    const listItem = this.createElement("li", "task");
+    listItem.identifier = task.identifier;
+    this._redrawListItem(listItem, task);
+    this.tasks.append(listItem);
+  }
+
+  removeTask(identifier) {
+    const nodes = this.tasks.childNodes;
+    nodes.forEach((node) => {
+      if (node.identifier === identifier) {
+        this.tasks.removeChild(node);
+      }
+    });
   }
 
   toggleTask(task) {
@@ -134,14 +146,9 @@ class View {
       this.tasks.removeChild(this.tasks.firstChild);
     }
 
-    if (taskList.length > 0) {
-      taskList.forEach((task) => {
-        const listItem = this.createElement("li", "task");
-        listItem.identifier = task.identifier;
-        this._redrawListItem(listItem, task);
-        this.tasks.append(listItem);
-      });
-    }
+    taskList.forEach((task) => {
+      this.addTask(task);
+    });
   }
 
   _redrawListItem(listItem, task) {
@@ -254,28 +261,34 @@ class Controller {
     this.model = model;
     this.view = view;
 
-    this.onTaskListChanged(this.model.taskList);
+    this.view.displayTasks(this.model.taskList);
+
     this.view.bindAddTask(this.handleAddTask);
     this.view.bindRemoveTask(this.handleRemoveTask);
     this.view.bindToggleTask(this.handleToggleTask);
     this.view.bindInputTask(this.handleInputTask);
     this.view.bindEditTask(this.handleEditTask);
 
-    this.model.bindTaskListChanged(this.onTaskListChanged);
-    this.model.bindToggleTaskChanged(this.onToggleTaskChanged);
+    this.model.bindTaskToggled(this.onTaskToggled);
     this.model.bindTaskChanged(this.onTaskChanged);
+    this.model.bindTaskAdded(this.onTaskAdded);
+    this.model.bindTaskRemoved(this.onTaskRemoved);
   }
 
-  onTaskListChanged = (taskList) => {
-    this.view.displayTasks(taskList);
-  };
-
-  onToggleTaskChanged = (task) => {
+  onTaskToggled = (task) => {
     this.view.toggleTask(task);
   };
 
   onTaskChanged = (task) => {
     this.view.changeTask(task);
+  };
+
+  onTaskAdded = (task) => {
+    this.view.addTask(task);
+  };
+
+  onTaskRemoved = (identifier) => {
+    this.view.removeTask(identifier);
   };
 
   handleAddTask = (text) => {
